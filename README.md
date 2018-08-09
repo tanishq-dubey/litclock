@@ -6,6 +6,12 @@ Instead of running on a Kindle however, this runs in your terminal.
 
 A literary clock is a timekeeping device that uses quotes from literature to tell the time.
 
+### Tell the time and read
+![Standard](https://github.com/tanishq-dubey/litclock/raw/master/images/im1.png)
+
+### Or do it with color!
+![Or With Color](https://github.com/tanishq-dubey/litclock/raw/master/images/im2.png)
+
 ## Installing
 _pip version coming soon™️_
 
