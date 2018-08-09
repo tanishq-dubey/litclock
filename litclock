@@ -1,0 +1,139 @@
+#!/usr/bin/env python
+
+import csv
+from datetime import datetime
+from dateutil import parser as dateparse
+from colorama import init, Fore, Back, Style
+import random
+import pickle
+import os.path
+import argparse
+
+def searchTime(timeL, currentTime):
+    secure_random = random.SystemRandom()
+
+    cTimeM = currentTime.minute
+    cTimeH = currentTime.hour
+    # Check if the current time has any items, if it does, return it
+    if isinstance(timeL[cTimeH][cTimeM], list):
+        return random.choice(timeL[cTimeH][cTimeM])
+    else:
+        cTime = timeL[cTimeH][cTimeM]
+        return random.choice(timeL[cTime[0]][cTime[1]])
+
+def buildTimeArray(raw_input_file, output_file):
+# Read in CSV
+    timeList = []
+    try:
+        with open(raw_input_file, 'rb') as f:
+            reader = csv.reader(f, delimiter='|')
+            timeList = list(reader)
+    except IOError:
+        print("Error reading CSV at {}. Does it exist?").format(raw_input_file)
+        exit(1)
+
+# Change times into datetime objects
+    timeList = [[datetime.time(dateparse.parse(x[0])), x[1].rstrip(), x[2].rstrip(), x[3].rstrip(), x[4].rstrip()]  for x in timeList]
+
+# Create the data structure to store the times
+    timeListHourly = [[[] for x in range(60)] for x in range(24)]
+
+# Move times into their slots
+    for times in timeList:
+        timeListHourly[times[0].hour][times[0].minute].append(times)
+
+# For all non existing times, we want to change the empty list to an array index of the closest
+# time. Make everything pre-computed
+    for hour in range(24):
+        for minute in range(60):
+            if not timeListHourly[hour][minute]:
+                cTimeM  = minute
+                cTimeH  = hour
+                cTimeMp = minute
+                cTimeHp = hour
+                while True:
+                    cTimeM = cTimeM + 1
+                    cTimeMp = cTimeMp - 1
+
+                    if cTimeM > 59:
+                        cTimeH = cTimeH + 1
+                        if cTimeH < 23:
+                            cTimeH = 0
+                        cTimeM = 0
+
+                    if cTimeMp < 0:
+                        cTimeHp = cTimeHp - 1
+                        if cTimeHp < 0:
+                            cTimeHp = 23
+                        cTimeMp = 59
+                    if timeListHourly[cTimeH][cTimeM] and isinstance(timeListHourly[cTimeH][cTimeM], list):
+                        timeListHourly[hour][minute] = (cTimeH, cTimeM)
+                        break
+                    if timeListHourly[cTimeHp][cTimeMp] and isinstance(timeListHourly[cTimeHp][cTimeMp], list):
+                        timeListHourly[hour][minute] = (cTimeHp, cTimeMp)
+                        break
+
+    output = open(output_file, 'wb')
+    pickle.dump(timeListHourly, output)
+    output.close()
+    return timeListHourly
+
+def readComputedTimeArray(input_file, output_file, raw_input_file):
+    if os.path.isfile(input_file):
+        pkl_file = open(input_file, 'rb')
+        timeListHourly = pickle.load(pkl_file)
+        pkl_file.close()
+        return timeListHourly
+    else:
+        return buildTimeArray(raw_input_file, output_file)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-c", "--colored", help="Use Colorama ANSI colored output", action="store_true", default=False)
+    parser.add_argument("-r", "--raw-input-file", help="Input CSV file, see README for format. Default is ~/.litclock/times.csv")
+    parser.add_argument("-i", "--input-file", help="Custom location for input pickle file. Default is ~/.litclock/data.pkl")
+    parser.add_argument("-o", "--output-file", help="Custom location for output pickle file. Path will be created if it does not exist. Default is ~/.litclock/data.plk")
+    args = parser.parse_args()
+
+    init()
+
+# Setup directory structure
+    input_file = args.input_file
+    raw_input_file = args.raw_input_file
+    output_file = args.output_file
+
+    home_dir = os.path.expanduser("~")
+
+    if not input_file or not raw_input_file or not output_file:
+        if not os.path.exists(home_dir + "/.litclock"):
+            os.makedirs(home_dir + "/.litclock")
+
+    if input_file:
+        if not os.path.isfile(args.input_file):
+            print("Specified input data file not found")
+            exit(1)
+    else:
+        input_file = home_dir + "/.litclock/data.pkl"
+
+    if output_file:
+        out_dir = os.path.dirname(os.path.abspath(existGDBPath))
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+    else:
+        output_file = home_dir + "/.litclock/data.pkl"
+
+    if raw_input_file:
+        if not os.path.isfile(args.raw_input_file):
+            print("Specified raw CSV file not found")
+            exit(1)
+    else:
+        raw_input_file = home_dir + "/.litclock/times.csv"
+
+# Get the current time
+    time = datetime.time(datetime.now())
+    timeListHourly = readComputedTimeArray(input_file, output_file, raw_input_file)
+    quote = searchTime(timeListHourly, time)
+    if args.colored:
+        print("{}\n {} by {}\t({}:{})").format(quote[2].replace(quote[1], Fore.RED + quote[1] + Style.RESET_ALL), quote[3], quote[4], time.hour, time.minute)
+    else:
+        print("{}\n {} by {}\t({}:{})").format(quote[2], quote[3], quote[4], time.hour, time.minute)
